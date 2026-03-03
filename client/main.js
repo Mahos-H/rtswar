@@ -143,7 +143,6 @@ function initThree() {
     color: 0xffffff,
     roughness: 0.7,
     metalness: 0.1
-    vertexColors: false
   });
 
   tileCount = gridSize * gridSize;
