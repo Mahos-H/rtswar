@@ -22,10 +22,17 @@ let instanceIndexFromXY; // mapping x,y -> instance index
 
 // color palette for owners (assign dynamically)
 const ownerColors = {}; // owner -> THREE.Color
-const neutralColor = new THREE.Color(0.35, 0.35, 0.38);
+let neutralColor = null; // initialized inside initThree() to avoid crash if THREE is not yet loaded
+
+// Guard against multiple initThree() calls (e.g. on socket reconnect)
+let threeInitialized = false;
+// Guard against snapshot arriving before initThree() completes
+let threeReady = false;
+let pendingSnapshot = null;
 
 // When server welcomes us
 socket.on('welcome', data => {
+  console.log('[rtswar] welcome received', data);
   playerId = data.playerId;
   playerIdEl.textContent = playerId;
   gridSize = data.gridSize || 120;
@@ -44,6 +51,11 @@ socket.on('snapshot', snapshot => {
   for (const c of snapshot.cells) {
     const key = `${c.x},${c.y}`;
     cellsMap.set(key, c);
+  }
+  if (!threeReady) {
+    // initThree() hasn't finished yet — queue the snapshot
+    pendingSnapshot = snapshot;
+    return;
   }
   applyFullToInstances(snapshot.cells);
   if (snapshot.camps) renderCamps(snapshot.camps);
@@ -86,97 +98,116 @@ btnDeploy.onclick = () => {
 
 // --- THREE.js setup ---
 function initThree() {
-  const container = document.getElementById('canvasContainer');
-  const width = window.innerWidth;
-  const height = window.innerHeight;
+  if (threeInitialized) return;
+  threeInitialized = true;
+  console.log('[rtswar] initThree start');
+  try {
+    neutralColor = new THREE.Color(0.35, 0.35, 0.38);
 
-  scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x111111);
+    const container = document.getElementById('canvasContainer');
+    const width = window.innerWidth;
+    const height = window.innerHeight;
 
-  renderer = new THREE.WebGLRenderer({ antialias: true });
-  renderer.setSize(width, height);
-  container.innerHTML = '';
-  container.appendChild(renderer.domElement);
+    scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x111111);
 
-  // Orthographic camera
-  const aspect = width / height;
-  const frustumSize = gridSize * 1.2;
+    renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(width, height);
+    container.innerHTML = '';
+    container.appendChild(renderer.domElement);
 
-  camera = new THREE.OrthographicCamera(
-    frustumSize * aspect / -2,
-    frustumSize * aspect / 2,
-    frustumSize / 2,
-    frustumSize / -2,
-    0.1,
-    2000
-  );
+    // Orthographic camera
+    const aspect = width / height;
+    const frustumSize = gridSize * 1.2;
 
-  // Good stable 2.5D position
-  camera.position.set(gridSize * 0.7, gridSize * 0.8, gridSize * 0.7);
-  camera.lookAt(0, 0, 0);
+    camera = new THREE.OrthographicCamera(
+      frustumSize * aspect / -2,
+      frustumSize * aspect / 2,
+      frustumSize / 2,
+      frustumSize / -2,
+      0.1,
+      2000
+    );
 
-  // OrbitControls
-  controls = new THREE.OrbitControls(camera, renderer.domElement);
-  controls.enableRotate = true;
-  controls.enableZoom = true;
-  controls.enablePan = true;
-  controls.target.set(0, 0, 0);
-  controls.mouseButtons = {
-    LEFT: THREE.MOUSE.PAN,
-    MIDDLE: THREE.MOUSE.DOLLY,
-    RIGHT: THREE.MOUSE.ROTATE
-  };
-  controls.update();
+    // Good stable 2.5D position
+    camera.position.set(gridSize * 0.7, gridSize * 0.8, gridSize * 0.7);
+    camera.lookAt(0, 0, 0);
 
-  // Lighting
-  const light = new THREE.DirectionalLight(0xffffff, 1.2);
-  light.position.set(gridSize * 0.5, gridSize, gridSize * 0.3);
-  scene.add(light);
-  scene.add(new THREE.HemisphereLight(0xccccff, 0x444422, 0.6));
-  scene.add(new THREE.AmbientLight(0x808080));
+    // OrbitControls
+    controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.enableRotate = true;
+    controls.enableZoom = true;
+    controls.enablePan = true;
+    controls.target.set(0, 0, 0);
+    controls.mouseButtons = {
+      LEFT: THREE.MOUSE.PAN,
+      MIDDLE: THREE.MOUSE.DOLLY,
+      RIGHT: THREE.MOUSE.ROTATE
+    };
+    controls.update();
 
-  // === GRID TILES ===
+    // Lighting
+    const light = new THREE.DirectionalLight(0xffffff, 1.2);
+    light.position.set(gridSize * 0.5, gridSize, gridSize * 0.3);
+    scene.add(light);
+    scene.add(new THREE.HemisphereLight(0xccccff, 0x444422, 0.6));
+    scene.add(new THREE.AmbientLight(0x808080));
 
-  const tileSize = 1;
-  const geometry = new THREE.BoxGeometry(tileSize, 1, tileSize);
-  const material = new THREE.MeshStandardMaterial({
-    color: 0xffffff,
-    roughness: 0.7,
-    metalness: 0.1
-  });
+    // === GRID TILES ===
 
-  tileCount = gridSize * gridSize;
-  instancedMesh = new THREE.InstancedMesh(geometry, material, tileCount);
+    const tileSize = 1;
+    const geometry = new THREE.BoxGeometry(tileSize, 1, tileSize);
+    const material = new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      roughness: 0.7,
+      metalness: 0.1
+    });
 
-  instanceIndexFromXY = new Map();
+    tileCount = gridSize * gridSize;
+    instancedMesh = new THREE.InstancedMesh(geometry, material, tileCount);
 
-  const dummy = new THREE.Object3D();
-  const colors = new Float32Array(tileCount * 3);
-  instancedMesh.instanceColor = new THREE.InstancedBufferAttribute(colors, 3);
+    instanceIndexFromXY = new Map();
 
-  let index = 0;
+    const dummy = new THREE.Object3D();
+    const colors = new Float32Array(tileCount * 3);
+    instancedMesh.instanceColor = new THREE.InstancedBufferAttribute(colors, 3);
 
-  for (let x = 0; x < gridSize; x++) {
-    for (let y = 0; y < gridSize; y++) {
-      dummy.position.set(
-        x - gridSize / 2,
-        0,
-        y - gridSize / 2
-      );
-      dummy.scale.set(1, 0.1, 1); // very thin initial height
-      dummy.updateMatrix();
-      instancedMesh.setMatrixAt(index, dummy.matrix);
+    let index = 0;
 
-      instancedMesh.instanceColor.setXYZ(index, 0.3, 0.3, 0.33);
+    for (let x = 0; x < gridSize; x++) {
+      for (let y = 0; y < gridSize; y++) {
+        dummy.position.set(
+          x - gridSize / 2,
+          0,
+          y - gridSize / 2
+        );
+        dummy.scale.set(1, 0.1, 1); // very thin initial height
+        dummy.updateMatrix();
+        instancedMesh.setMatrixAt(index, dummy.matrix);
 
-      instanceIndexFromXY.set(`${x},${y}`, index);
-      index++;
+        instancedMesh.instanceColor.setXYZ(index, 0.3, 0.3, 0.33);
+
+        instanceIndexFromXY.set(`${x},${y}`, index);
+        index++;
+      }
     }
+
+    scene.add(instancedMesh);
+
+    console.log('[rtswar] initThree complete');
+    threeReady = true;
+    if (pendingSnapshot) {
+      const snap = pendingSnapshot;
+      pendingSnapshot = null;
+      applyFullToInstances(snap.cells);
+      if (snap.camps) renderCamps(snap.camps);
+    }
+
+    animate();
+  } catch (err) {
+    console.error('[rtswar] initThree error:', err);
+    threeInitialized = false; // allow retry on next welcome
   }
-
-  scene.add(instancedMesh);
-
-  animate();
 }
 // Convert an owner string to color
 function ownerColor(owner) {
@@ -192,6 +223,7 @@ function ownerColor(owner) {
 }
 
 function applyFullToInstances(cells) {
+  if (!instancedMesh || !instanceIndexFromXY) return;
   // cells is array of DTOs
   const dummy = new THREE.Object3D();
   for (const c of cells) {
@@ -201,8 +233,6 @@ function applyFullToInstances(cells) {
     const color = ownerColor(c.owner);
     instancedMesh.instanceColor.setXYZ(idx, color.r, color.g, color.b);
     const height = Math.max(0.1, Math.min(3.0, c.strength / 20));
-    dummy.position.set(c.x - gridSize / 2, height / 2, c.y - gridSize / 2);
-    // update matrix
     const px = c.x - gridSize / 2;
     const pz = c.y - gridSize / 2;
     dummy.position.set(px, height / 2, pz);
@@ -215,6 +245,7 @@ function applyFullToInstances(cells) {
 }
 
 function applyDeltasToInstances(deltas) {
+  if (!instancedMesh || !instanceIndexFromXY) return;
   const dummy = new THREE.Object3D();
 
   for (const c of deltas) {
@@ -251,15 +282,18 @@ function applyDeltasToInstances(deltas) {
 // simple render loop
 function animate() {
   requestAnimationFrame(animate);
+  if (!renderer || !scene || !camera) return;
   if (controls) controls.update();
   renderer.render(scene, camera);
 }
 
 // Camp markers
 let campMarkers = [];
-const campMarkerGeo = new THREE.ConeGeometry(0.8, 2.5, 6);
+let campMarkerGeo = null;
 
 function renderCamps(camps) {
+  if (!scene) return;
+  if (!campMarkerGeo) campMarkerGeo = new THREE.ConeGeometry(0.8, 2.5, 6);
   for (const m of campMarkers) scene.remove(m);
   campMarkers = [];
   for (const camp of camps) {
@@ -278,6 +312,7 @@ function renderCamps(camps) {
 
 // handle window resize
 window.addEventListener('resize', () => {
+  if (!renderer || !camera) return;
   const width = window.innerWidth;
   const height = window.innerHeight;
   renderer.setSize(width, height);
