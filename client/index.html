@@ -1,0 +1,32 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Cell War Sim</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="hud">
+    <div>Player: <span id="playerId">?</span></div>
+    <div>Phase: <span id="phase">?</span></div>
+    <div>
+      <button id="btnSnapshot">Get Map</button>
+      <button id="btnStart">Start Simulation</button>
+    </div>
+    <div style="margin-top:8px">
+      <label>Place camp: x <input id="campX" type="number" value="10" style="width:60px"> y <input id="campY" type="number" value="10" style="width:60px"> <button id="btnPlaceCamp">Place</button></label>
+    </div>
+    <div style="margin-top:8px">
+      <label>Deploy at: x <input id="depX" type="number" value="12" style="width:60px"> y <input id="depY" type="number" value="12" style="width:60px">
+      infantry <input id="inf" type="number" value="20" style="width:50px"> tanks <input id="tks" type="number" value="2" style="width:50px"> art <input id="art" type="number" value="0" style="width:50px">
+      <button id="btnDeploy">Deploy</button></label>
+    </div>
+  </div>
+  <div id="canvasContainer"></div>
+
+  <!-- Three.js from CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/three@0.154.0/build/three.min.js"></script>
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="main.js"></script>
+</body>
+</html>
