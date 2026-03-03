@@ -4,11 +4,13 @@ body{ margin:0; background:#111; color:#eee; font-family: system-ui, sans-serif;
   left: 8px;
   top: 8px;
   z-index: 20;
-  background: rgba(0,0,0,0.4);
-  padding:10px;
+  background: rgba(0,0,0,0.55);
+  padding:12px 14px;
   border-radius:6px;
   backdrop-filter: blur(4px);
+  font-size: 13px;
+  line-height: 1.6;
 }
 #canvasContainer { width:100vw; height:100vh; overflow:hidden; }
 button { margin-left:6px; }
-input { background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.06); color: #eee; padding:2px 4px; }
+input { background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); color: #eee; padding:2px 4px; }
