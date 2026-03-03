@@ -8,6 +8,7 @@ class Simulation extends EventEmitter {
     this.gridSize = gridSize;
     this.tickRate = tickRate;
     this.phase = 'setup';
+    this.tick = 0;
 
     this.cells = [];
     this.camps = [];
@@ -99,6 +100,14 @@ class Simulation extends EventEmitter {
     this.interval = setInterval(() => this._tick(), 1000 / this.tickRate);
   }
 
+  stop() {
+    if (this.interval) {
+      clearInterval(this.interval);
+      this.interval = null;
+    }
+    this.phase = 'finished';
+  }
+
   _tick() {
     const newCells = JSON.parse(JSON.stringify(this.cells));
 
@@ -183,10 +192,25 @@ class Simulation extends EventEmitter {
       }
     }
 
+    const oldCells = this.cells;
     this.cells = newCells;
-    this.emit('delta', {
-      deltas: this.cells
-    });
+    this.tick++;
+    const deltas = [];
+    for (let i = 0; i < newCells.length; i++) {
+      const oldCell = oldCells[i];
+      const newCell = newCells[i];
+      if (
+        oldCell.owner !== newCell.owner ||
+        Math.abs(oldCell.strength - newCell.strength) > 0.01 ||
+        Math.abs(oldCell.morale - newCell.morale) > 0.01 ||
+        Math.abs(oldCell.supply - newCell.supply) > 0.01
+      ) {
+        deltas.push(newCell);
+      }
+    }
+    if (deltas.length > 0) {
+      this.emit('delta', { tick: this.tick, deltas });
+    }
   }
 
   getSnapshot() {

@@ -57,6 +57,10 @@ socket.on('phase', data => {
 socket.on('stateDelta', data => {
   // data: {tick, deltas: [cellDTO, ...]}
   if (data.tick !== undefined) tickEl.textContent = data.tick;
+  for (const c of data.deltas) {
+    const key = `${c.x},${c.y}`;
+    cellsMap.set(key, c);
+  }
   applyDeltasToInstances(data.deltas);
 });
 
@@ -139,6 +143,7 @@ function initThree() {
     color: 0xffffff,
     roughness: 0.7,
     metalness: 0.1
+    vertexColors: false
   });
 
   tileCount = gridSize * gridSize;
@@ -188,6 +193,7 @@ function ownerColor(owner) {
 }
 
 function applyFullToInstances(cells) {
+  // cells is array of DTOs
   const dummy = new THREE.Object3D();
   for (const c of cells) {
     const key = `${c.x},${c.y}`;
@@ -197,6 +203,10 @@ function applyFullToInstances(cells) {
     instancedMesh.instanceColor.setXYZ(idx, color.r, color.g, color.b);
     const height = Math.max(0.1, Math.min(3.0, c.strength / 20));
     dummy.position.set(c.x - gridSize / 2, height / 2, c.y - gridSize / 2);
+    // update matrix
+    const px = c.x - gridSize / 2;
+    const pz = c.y - gridSize / 2;
+    dummy.position.set(px, height / 2, pz);
     dummy.scale.set(1, height, 1);
     dummy.updateMatrix();
     instancedMesh.setMatrixAt(idx, dummy.matrix);
