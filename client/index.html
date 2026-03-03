@@ -9,6 +9,7 @@
   <div id="hud">
     <div>Player: <span id="playerId">?</span></div>
     <div>Phase: <span id="phase">?</span></div>
+    <div>Tick: <span id="tick">0</span></div>
     <div>
       <button id="btnSnapshot">Get Map</button>
       <button id="btnStart">Start Simulation</button>
@@ -21,11 +22,13 @@
       infantry <input id="inf" type="number" value="20" style="width:50px"> tanks <input id="tks" type="number" value="2" style="width:50px"> art <input id="art" type="number" value="0" style="width:50px">
       <button id="btnDeploy">Deploy</button></label>
     </div>
+    <div id="controls-help" style="margin-top:8px;font-size:11px;opacity:0.7">Left-drag: pan &nbsp;|&nbsp; Right-drag: rotate &nbsp;|&nbsp; Scroll: zoom</div>
   </div>
   <div id="canvasContainer"></div>
 
   <!-- Three.js from CDN -->
   <script src="https://cdn.jsdelivr.net/npm/three@0.154.0/build/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.154.0/examples/js/controls/OrbitControls.js"></script>
   <script src="/socket.io/socket.io.js"></script>
   <script src="main.js"></script>
 </body>
