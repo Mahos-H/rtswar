@@ -55,6 +55,10 @@ socket.on('phase', data => {
 
 socket.on('stateDelta', data => {
   // data: {tick, deltas: [cellDTO, ...]}
+  for (const c of data.deltas) {
+    const key = `${c.x},${c.y}`;
+    cellsMap.set(key, c);
+  }
   applyDeltasToInstances(data.deltas);
 });
 
@@ -120,7 +124,7 @@ function initThree() {
   const tileSize = 1;
   const geometry = new THREE.BoxGeometry(tileSize, 1, tileSize);
   const material = new THREE.MeshStandardMaterial({
-    vertexColors: true
+    vertexColors: false
   });
 
   tileCount = gridSize * gridSize;
@@ -172,6 +176,7 @@ function ownerColor(owner) {
 
 function applyFullToInstances(cells) {
   // cells is array of DTOs
+  const dummy = new THREE.Object3D();
   for (const c of cells) {
     const key = `${c.x},${c.y}`;
     const idx = instanceIndexFromXY.get(key);
@@ -182,13 +187,12 @@ function applyFullToInstances(cells) {
     // set height based on strength (map strength to 0.1..3.0)
     const height = Math.max(0.1, Math.min(3.0, c.strength / 20));
     // update matrix
-    const matrix = new THREE.Matrix4();
     const px = c.x - gridSize / 2;
     const pz = c.y - gridSize / 2;
-    // translate y by height/2 to keep base on ground
-    matrix.makeTranslation(px, height/2, pz);
-    matrix.scale(new THREE.Vector3(1, height, 1));
-    instancedMesh.setMatrixAt(idx, matrix);
+    dummy.position.set(px, height / 2, pz);
+    dummy.scale.set(1, height, 1);
+    dummy.updateMatrix();
+    instancedMesh.setMatrixAt(idx, dummy.matrix);
   }
   instancedMesh.instanceMatrix.needsUpdate = true;
   instancedMesh.instanceColor.needsUpdate = true;
@@ -238,15 +242,14 @@ function animate() {
 
 // handle window resize
 window.addEventListener('resize', () => {
-  const container = document.getElementById('canvasContainer');
-  const width = container.clientWidth || window.innerWidth;
-  const height = container.clientHeight || window.innerHeight;
+  const width = window.innerWidth;
+  const height = window.innerHeight;
   renderer.setSize(width, height);
   const aspect = width / height;
-  const frustum = Math.max(gridSize, 64);
-  camera.left = -frustum * aspect;
-  camera.right = frustum * aspect;
-  camera.top = frustum;
-  camera.bottom = -frustum;
+  const frustumSize = gridSize;
+  camera.left = frustumSize * aspect / -2;
+  camera.right = frustumSize * aspect / 2;
+  camera.top = frustumSize / 2;
+  camera.bottom = frustumSize / -2;
   camera.updateProjectionMatrix();
 });

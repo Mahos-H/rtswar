@@ -40,7 +40,10 @@ io.on('connection', socket => {
   socket.on('placeCamp', data => {
     // data: {x, y}
     if (sim.phase !== 'setup') return;
-    sim.addCamp({ owner: playerId, x: data.x, y: data.y });
+    const x = parseInt(data.x, 10);
+    const y = parseInt(data.y, 10);
+    if (isNaN(x) || isNaN(y) || x < 0 || y < 0 || x >= sim.gridSize || y >= sim.gridSize) return;
+    sim.addCamp({ owner: playerId, x, y });
     io.emit('snapshot', sim.getSnapshot()); // broadcast the updated snapshot
   });
 
@@ -48,7 +51,16 @@ io.on('connection', socket => {
   socket.on('deploy', data => {
     // data: {x, y, composition: {infantry, tanks, artillery}}
     if (sim.phase !== 'setup') return;
-    sim.deployComposition(playerId, data.x, data.y, data.composition);
+    const x = parseInt(data.x, 10);
+    const y = parseInt(data.y, 10);
+    if (isNaN(x) || isNaN(y) || x < 0 || y < 0 || x >= sim.gridSize || y >= sim.gridSize) return;
+    const comp = data.composition || {};
+    const infantry = Number(comp.infantry);
+    const tanks = Number(comp.tanks);
+    const artillery = Number(comp.artillery);
+    if (isNaN(infantry) || isNaN(tanks) || isNaN(artillery)) return;
+    if (infantry < 0 || tanks < 0 || artillery < 0) return;
+    sim.deployComposition(playerId, x, y, { infantry, tanks, artillery });
     io.emit('snapshot', sim.getSnapshot());
   });
 
